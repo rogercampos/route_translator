@@ -19,7 +19,7 @@ module RouteTranslator
       end
 
       def host_locales_option?
-        RouteTranslator.config.host_locales.present?
+        RouteTranslator.config.host_locales.any?
       end
 
       def translate_name(name, locale, named_routes_names)
@@ -46,6 +46,26 @@ module RouteTranslator
       end
     end
 
+    module VerificationLambdas
+      extend self
+
+      def for_locale(locale)
+        locale = sanitize_locale(locale)
+
+        lambdas[locale] ||= begin
+          lambda { |req| locale == RouteTranslator::Host.locale_from_host(req.host).to_s }
+        end
+      end
+
+      def lambdas
+        @lambdas ||= Hash.new
+      end
+
+      def sanitize_locale(locale)
+        locale.to_s.gsub('native_', '')
+      end
+    end
+
     module_function
 
     def translations_for(app, conditions, requirements, defaults, route_name, anchor, route_set)
@@ -59,18 +79,24 @@ module RouteTranslator
           next
         end
 
+        new_app = app
+
+        if RouteTranslator.config.verify_host_path_consistency
+          new_app = ActionDispatch::Routing::Mapper::Constraints.new(app, [VerificationLambdas.for_locale(locale)], true)
+        end
+
         new_conditions = translate_conditions(conditions, translated_path)
 
         new_defaults = defaults.merge(RouteTranslator.locale_param_key => locale.to_s.gsub('native_', ''))
         new_requirements = requirements.merge(RouteTranslator.locale_param_key => locale.to_s)
         new_route_name = translate_name(route_name, locale, route_set.named_routes.routes)
-        yield app, new_conditions, new_requirements, new_defaults, new_route_name, anchor
+        yield new_app, new_conditions, new_requirements, new_defaults, new_route_name, anchor
       end
     end
 
     def route_name_for(args, old_name, suffix, kaller)
-      args_hash           = args.detect { |arg| arg.is_a?(Hash) }
-      args_locale         = host_locales_option? && args_hash && args_hash[:locale]
+      args_hash = args.detect { |arg| arg.is_a?(Hash) }
+      args_locale = host_locales_option? && args_hash && args_hash[:locale]
       current_locale_name = I18n.locale.to_s.underscore
 
       locale = if args_locale

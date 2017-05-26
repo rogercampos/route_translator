@@ -9,6 +9,7 @@ module RouteTranslator
       config_available_locales []
       config_disable_fallback false
       config_locale_segment_proc false
+      config_verify_host_path_consistency false
 
       config_default_locale_settings :en
     end
@@ -38,6 +39,10 @@ module RouteTranslator
 
     def config_host_locales(hash = {})
       RouteTranslator.config.host_locales = hash
+    end
+
+    def config_verify_host_path_consistency(value)
+      RouteTranslator.config.verify_host_path_consistency = value
     end
 
     def config_available_locales(arr)
