@@ -19,7 +19,7 @@ module RouteTranslator
       end
 
       def host_locales_option?
-        RouteTranslator.config.host_locales.present?
+        RouteTranslator.config.host_locales.any?
       end
 
       def translate_name(name, locale, named_routes_names)
@@ -35,7 +35,7 @@ module RouteTranslator
       def translate_conditions(conditions, translated_path)
         translated_conditions = conditions.dup
 
-        translated_conditions[:path_info] = translated_path
+        translated_conditions[:path_info]        = translated_path
         translated_conditions[:parsed_path_info] = ActionDispatch::Journey::Parser.new.parse(translated_conditions[:path_info]) if conditions[:parsed_path_info]
 
         if translated_conditions[:required_defaults] && !translated_conditions[:required_defaults].include?(RouteTranslator.locale_param_key)
@@ -48,10 +48,24 @@ module RouteTranslator
 
     module_function
 
-    def translations_for(app, conditions, requirements, defaults, route_name, anchor, route_set)
+    def translations_for(route_set, scope, path, options)
+      as = options.delete(:as)
+      dup_options = options.dup
+
+      app, conditions, requirements, defaults, route_name, anchor = ActionDispatch::Routing::Mapper::Mapping.build(scope, route_set, path, as, dup_options).to_route
+
       RouteTranslator::Translator::RouteHelpers.add route_name, route_set.named_routes
 
       available_locales.each do |locale|
+        if RouteTranslator.config.verify_host_path_consistency
+          foo = options.dup
+          foo.merge!(constraints: lambda { |req|
+            locale == RouteTranslator::Host.locale_from_host(req.host)
+          })
+
+          app, conditions, requirements, defaults, route_name, anchor = ActionDispatch::Routing::Mapper::Mapping.build(scope, route_set, path, as, foo).to_route
+        end
+
         begin
           translated_path = RouteTranslator::Translator::Path.translate(conditions[:path_info], locale)
         rescue I18n::MissingTranslationData => e
@@ -61,10 +75,12 @@ module RouteTranslator
 
         new_conditions = translate_conditions(conditions, translated_path)
 
-        new_defaults = defaults.merge(RouteTranslator.locale_param_key => locale.to_s.gsub('native_', ''))
+        new_defaults     = defaults.merge(RouteTranslator.locale_param_key => locale.to_s.gsub('native_', ''))
         new_requirements = requirements.merge(RouteTranslator.locale_param_key => locale.to_s)
-        new_route_name = translate_name(route_name, locale, route_set.named_routes.routes)
-        yield app, new_conditions, new_requirements, new_defaults, new_route_name, anchor
+        new_route_name   = translate_name(route_name, locale, route_set.named_routes.routes)
+        new_app          = app
+
+        yield new_app, new_conditions, new_requirements, new_defaults, new_route_name, anchor
       end
     end
 
