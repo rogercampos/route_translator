@@ -59,11 +59,15 @@ module RouteTranslator
       available_locales.each do |locale|
         if RouteTranslator.config.verify_host_path_consistency
           foo = options.dup
+          as = foo.delete(:as)
+
           foo.merge!(constraints: lambda { |req|
-            locale == RouteTranslator::Host.locale_from_host(req.host)
+            locale.to_s.gsub('native_', '') == RouteTranslator::Host.locale_from_host(req.host).to_s
           })
 
-          app, conditions, requirements, defaults, route_name, anchor = ActionDispatch::Routing::Mapper::Mapping.build(scope, route_set, path, as, foo).to_route
+          a = ActionDispatch::Routing::Mapper::Mapping.build(scope, route_set, path, as, foo)
+
+          app, conditions, requirements, defaults, route_name, anchor = a.to_route
         end
 
         begin
@@ -78,9 +82,8 @@ module RouteTranslator
         new_defaults     = defaults.merge(RouteTranslator.locale_param_key => locale.to_s.gsub('native_', ''))
         new_requirements = requirements.merge(RouteTranslator.locale_param_key => locale.to_s)
         new_route_name   = translate_name(route_name, locale, route_set.named_routes.routes)
-        new_app          = app
 
-        yield new_app, new_conditions, new_requirements, new_defaults, new_route_name, anchor
+        yield app, new_conditions, new_requirements, new_defaults, new_route_name, anchor
       end
     end
 
