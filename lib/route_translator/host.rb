@@ -21,6 +21,10 @@ module RouteTranslator
 
     module_function
 
+    def locale_by_host?(locale)
+      RouteTranslator.config.host_locales.value?(locale.to_sym)
+    end
+
     def locale_from_host(host)
       locales = RouteTranslator.config.host_locales.each_with_object([]) do |(pattern, locale), result|
         result << locale.to_sym if host =~ regex_for(pattern)

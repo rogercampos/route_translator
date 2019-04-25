@@ -32,7 +32,9 @@ module ActionDispatch
 
         blocks = scope[:blocks] ? scope[:blocks].dup : []
 
-        if RouteTranslator.config.verify_host_path_consistency
+        sanitized_locale = RouteTranslator::LocaleSanitizer.sanitize(locale)
+
+        if RouteTranslator.config.verify_host_path_consistency && RouteTranslator::Host.locale_by_host?(sanitized_locale)
           blocks.push RouteTranslator::HostPathConsistencyLambdas.for_locale(locale)
         end
 
