@@ -33,7 +33,7 @@ module ActionDispatch
           options:     scope[:options] ? scope[:options].merge(translated_options) : translated_options
         }
 
-        if RouteTranslator.config.verify_host_path_consistency
+        if RouteTranslator.config.verify_host_path_consistency && RouteTranslator::Host.locale_by_host?(locale)
           scope_params[:blocks].push RouteTranslator::HostPathConsistencyLambdas.for_locale(locale)
         end
 

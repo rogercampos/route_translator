@@ -8,9 +8,11 @@ module RouteTranslator
       class << self
         private
 
-        def display_locale?(locale)
-          !RouteTranslator.config.hide_locale && !RouteTranslator.native_locale?(locale) &&
-            (!default_locale?(locale) || config_requires_locale?)
+        def hide_locale?(locale)
+          RouteTranslator.config.hide_locale ||
+          RouteTranslator.native_locale?(locale) ||
+          RouteTranslator::Host.locale_by_host?(locale) ||
+          (default_locale?(locale) && !config_requires_locale?)
         end
 
         def config_requires_locale?
@@ -48,7 +50,7 @@ module RouteTranslator
         end
         translated_segments.reject!(&:empty?)
 
-        if display_locale?(locale) && !locale_param_present?(new_path)
+        if !hide_locale?(locale) && !locale_param_present?(new_path)
           translated_segments.unshift(locale_segment(locale))
         end
 
